@@ -20,7 +20,7 @@ print(f"Cache expiry set to: {PROXY_EXPIRY} seconds")
 REDIS_HOST = os.environ.get("REDIS_HOST")
 print(f"Connecting to Redis at: {REDIS_HOST}")
 
-REDIS_PORT = int(os.environ.get("REDIS_PORT"))
+REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
 print(f"Using Redis port: {REDIS_PORT}")
 
 REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD")
