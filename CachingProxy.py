@@ -1,7 +1,6 @@
 import gzip
 import os
 import json
-import pickle
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
@@ -14,7 +13,7 @@ app = Flask(__name__)
 PROXY_URL = os.environ.get("PROXY_URL")
 print(f"Starting Caching Proxy with upstream URL: {PROXY_URL}")
 
-PROXY_EXPIRY = int(os.environ.get("PROXY_EXPIRY"))  # Seconds
+PROXY_EXPIRY = int(os.environ.get("PROXY_EXPIRY", 1800))  # Seconds
 print(f"Cache expiry set to: {PROXY_EXPIRY} seconds")
 
 REDIS_HOST = os.environ.get("REDIS_HOST")
@@ -25,7 +24,7 @@ print(f"Using Redis port: {REDIS_PORT}")
 
 REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD")
 
-
+# Setup the global pool
 redis_pool = ConnectionPool(
     host=REDIS_HOST,
     port=REDIS_PORT,
@@ -40,11 +39,9 @@ redis_pool = ConnectionPool(
 
 executor = ThreadPoolExecutor(max_workers=10)
 
+# Setup ONE global thread-safe client (Remove @app.before_request completely)
+r = Redis(connection_pool=redis_pool)
 
-@app.before_request
-def setup_database():
-    """Setup the database"""
-    g.r = Redis(connection_pool=redis_pool)
 
 
 def fetch_from_upstream(url):
@@ -62,19 +59,10 @@ def fetch_from_upstream(url):
         )
         return response
     except requests.RequestException as e:
+        print(f"Error fetching from upstream: {e}")
         return None
 
 
-# def compress_data(data):
-#     """Compress data for efficient storage"""
-#     return gzip.compress(pickle.dumps(data))
-
-
-# def decompress_data(compressed_data):
-#     """Decompress data from storage"""
-#     return pickle.loads(gzip.decompress(compressed_data))
-
-#compression is disabled to avoid issues with picklebombing attacks. In production, consider using a more secure serialization method if needed.
 def compress_data(data):
     # Separate the body (bytes) from the metadata (dict)
     meta = {
@@ -101,7 +89,8 @@ def caching_proxy(path):
     cache_key = f"cache:{request.full_path}"
 
     try:
-        cached_data = g.r.get(cache_key)
+        # Use global 'r' client directly
+        cached_data = r.get(cache_key)
         if cached_data is not None:
             # Cache hit - decompress and return
             response_data = decompress_data(cached_data)
@@ -141,7 +130,8 @@ def caching_proxy(path):
         }
 
         # Store in cache asynchronously
-        executor.submit(store_in_cache, g.r, cache_key, response_data, PROXY_EXPIRY)
+        # Pass the thread-safe global 'r' safely into the executor
+        executor.submit(store_in_cache, r, cache_key, response_data, PROXY_EXPIRY)
 
     return response
 
@@ -166,7 +156,7 @@ def health_check():
 def clear_cache():
     """Clear cache endpoint"""
     try:
-        g.r.flushdb()
+        r.flushdb() # Use global client
         return {"status": "cache cleared"}
     except Exception as e:
         return {"error": str(e)}, 500
