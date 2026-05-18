@@ -86,14 +86,18 @@ def decompress_data(compressed_data):
 @app.route("/", defaults={"path": ""}, methods=["GET"])
 @app.route("/<path:path>", methods=["GET"])
 def caching_proxy(path):
+    if path == "favicon.ico" or path == "/favicon.ico":
+        return Response("favicon", status=204)
+    print(f"Received drrr for path: {path}")
     cache_key = f"cache:{request.full_path}"
-
+    print(f"test 1 - Cache key: {cache_key}")
     try:
         # Use global 'r' client directly
         cached_data = r.get(cache_key)
         if cached_data is not None:
             # Cache hit - decompress and return
             response_data = decompress_data(cached_data)
+            print(f"test 4 - Response data: {response_data}")
             response = Response(
                 response_data["content"],
                 response_data["status_code"],
@@ -104,10 +108,13 @@ def caching_proxy(path):
             return response
     except Exception as e:
         # Cache error - continue to fetch from upstream
+        print(f"Error accessing cache: {e}")
         pass
 
     # Cache miss - fetch from upstream
+    print(f"test 2 - Cache miss for key: {cache_key}")
     full_uri = f"{PROXY_URL}{request.full_path}"
+    print(f"Fetching full_uri from upstream: {full_uri}")
     upstream_response = fetch_from_upstream(full_uri)
 
     if upstream_response is None:
@@ -122,19 +129,26 @@ def caching_proxy(path):
     response.headers["X-Cache"] = "MISS"
 
     # Cache the response asynchronously (fire and forget)
+    print(f"test 3 - Cache the response asynchronously (fire and forget)")
     if upstream_response.status_code == 200:
         response_data = {
             "content": upstream_response.content,
             "status_code": upstream_response.status_code,
             "headers": dict(upstream_response.headers),
         }
-
+        print(f"test 5 - Response data to cache: {response_data['content']}")
         # Store in cache asynchronously
         # Pass the thread-safe global 'r' safely into the executor
         executor.submit(store_in_cache, r, cache_key, response_data, PROXY_EXPIRY)
 
     return response
 
+
+@app.route('/testCounter', methods=['GET'])
+def testCounter():
+    # Increment a visitor counter in Redis
+    visits = r.incr('counter')
+    return f"Hello World! This page has been viewed {visits} times."
 
 def store_in_cache(redis_client, key, data, expiry):
     """Store data in cache asynchronously"""
@@ -160,3 +174,7 @@ def clear_cache():
         return {"status": "cache cleared"}
     except Exception as e:
         return {"error": str(e)}, 500
+    
+
+
+if __name__ == "__main__":    app.run(host="0.0.0.0", port=5000)
