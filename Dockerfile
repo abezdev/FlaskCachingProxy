@@ -2,11 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /CachingProxy
 
-# Install dependencies (Flask, Redis, Requests)
-RUN pip install --no-cache-dir flask redis requests gunicorn
-
 # Copy your application code
 COPY . .
+
+# Install dependencies (Flask, Redis, Requests)
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Expose the Flask port
 EXPOSE 5000
