@@ -24,6 +24,7 @@ print(f"Using Redis port: {REDIS_PORT}")
 
 REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD")
 
+#replace with MongoDB
 # Setup the global pool
 redis_pool = ConnectionPool(
     host=REDIS_HOST,
