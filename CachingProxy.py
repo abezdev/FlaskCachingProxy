@@ -40,7 +40,7 @@ redis_pool = ConnectionPool(
 
 executor = ThreadPoolExecutor(max_workers=10)
 
-# Setup ONE global thread-safe client (Remove @app.before_request completely)
+# Setup ONE global thread-safe client (Remove @app.before_request completely) 
 r = Redis(connection_pool=redis_pool)
 
 
